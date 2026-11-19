@@ -161,7 +161,9 @@ $<TARGET_FILE:idf::touch_element>
 $<TARGET_FILE:idf::usb>
 $<TARGET_FILE:idf::wifi_provisioning>
 $<TARGET_FILE:__idf_json>
+$<TARGET_FILE:idf::espressif__esp_jpeg>
 $<TARGET_FILE:idf::main>
+$<TARGET_FILE:__idf_espressif__esp_jpeg>
 $<TARGET_FILE:idf::fonts>
 $<TARGET_FILE:idf::gpio>
 $<TARGET_FILE:idf::gui_paint>

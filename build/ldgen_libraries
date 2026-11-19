@@ -161,7 +161,9 @@
 /home/benbooker/esp/focus_m1/build/esp-idf/usb/libusb.a
 /home/benbooker/esp/focus_m1/build/esp-idf/wifi_provisioning/libwifi_provisioning.a
 /home/benbooker/esp/focus_m1/build/esp-idf/json/libjson.a
+/home/benbooker/esp/focus_m1/build/esp-idf/espressif__esp_jpeg/libespressif__esp_jpeg.a
 /home/benbooker/esp/focus_m1/build/esp-idf/main/libmain.a
+/home/benbooker/esp/focus_m1/build/esp-idf/espressif__esp_jpeg/libespressif__esp_jpeg.a
 /home/benbooker/esp/focus_m1/build/esp-idf/fonts/libfonts.a
 /home/benbooker/esp/focus_m1/build/esp-idf/gpio/libgpio.a
 /home/benbooker/esp/focus_m1/build/esp-idf/gui_paint/libgui_paint.a
