@@ -4,6 +4,7 @@
 #include "esp_timer.h"
 #include "esp_heap_caps.h"
 #include "esp_jpeg_dec.h"
+#include <string.h>
 
 extern const uint8_t test_jpg_start[] asm("_binary_test_jpg_start");
 extern const uint8_t test_jpg_end[] asm("_binary_test_jpg_end");
@@ -13,6 +14,8 @@ extern const uint8_t gray_800_jpg_start[] asm("_binary_gray_800_jpg_start");
 extern const uint8_t gray_800_jpg_end[] asm("_binary_gray_800_jpg_end");
 extern const uint8_t gray_1024_jpg_start[] asm("_binary_gray_1024_jpg_start");
 extern const uint8_t gray_1024_jpg_end[] asm("_binary_gray_1024_jpg_end");
+extern const uint8_t crop_512_jpg_start[] asm("_binary_crop_512_jpg_start");
+extern const uint8_t crop_512_jpg_end[] asm("_binary_crop_512_jpg_end");
 
 #define ROTATE ROTATE_0 // rotate = 0, 90, 180, 270
 
@@ -76,6 +79,71 @@ static void bench_new(const char *name, const uint8_t *start, const uint8_t *end
            (t1 - t0) / 1000, (t2 - t1) / 1000, err);
 }
 
+static void bench_block(const char *name, const uint8_t *start, const uint8_t *end,
+                        uint16_t *fb, esp_lcd_panel_handle_t panel)
+{
+    jpeg_dec_config_t config = DEFAULT_JPEG_DEC_CONFIG();
+    config.output_type = JPEG_PIXEL_FORMAT_RGB565_LE;
+    config.block_enable = true;
+
+    jpeg_dec_handle_t dec = NULL;
+    jpeg_dec_io_t io = {.inbuf = (uint8_t *)start, .inbuf_len = end - start};
+    jpeg_dec_header_info_t info = {0};
+    uint8_t *block = NULL;
+    int block_len = 0, count = 0;
+
+    int64_t t0 = esp_timer_get_time();
+    jpeg_error_t err = jpeg_dec_open(&config, &dec);
+    if (err == JPEG_ERR_OK)
+        err = jpeg_dec_parse_header(dec, &io, &info);
+    if (err == JPEG_ERR_OK && (info.width * 2 > EXAMPLE_LCD_H_RES || info.height * 2 > EXAMPLE_LCD_V_RES))
+        err = JPEG_ERR_INVALID_PARAM; // too big to double
+    if (err == JPEG_ERR_OK)
+        err = jpeg_dec_get_outbuf_len(dec, &block_len);
+    if (err == JPEG_ERR_OK)
+        err = jpeg_dec_get_process_count(dec, &count);
+    if (err == JPEG_ERR_OK)
+    {
+        block = heap_caps_aligned_alloc(16, block_len, MALLOC_CAP_INTERNAL);
+        if (block == NULL)
+            err = JPEG_ERR_NO_MEM;
+    }
+    io.outbuf = block;
+
+    int y = 0; // which source row we're on
+    for (int i = 0; i < count && err == JPEG_ERR_OK; i++)
+    {
+        err = jpeg_dec_process(dec, &io);          // decode one strip
+        int rows = io.out_size / (info.width * 2); // rows in this strip
+        uint16_t *src = (uint16_t *)block;
+
+        for (int r = 0; r < rows; r++, y++)
+        {
+            uint16_t *row = fb + (2 * y) * EXAMPLE_LCD_H_RES; // screen row 2*y
+            for (int x = 0; x < info.width; x++)
+            {
+                uint16_t p = src[r * info.width + x];
+                row[2 * x] = p; // pixel twice across
+                row[2 * x + 1] = p;
+            }
+            memcpy(row + EXAMPLE_LCD_H_RES, row, info.width * 2 * 2); // and twice down
+        }
+    }
+    if (dec)
+        jpeg_dec_close(dec);
+    if (block)
+        heap_caps_free(block);
+    int64_t t1 = esp_timer_get_time();
+
+    if (err == JPEG_ERR_OK)
+        esp_lcd_panel_draw_bitmap(panel, 0, 0, EXAMPLE_LCD_H_RES, EXAMPLE_LCD_V_RES, fb);
+    int64_t t2 = esp_timer_get_time();
+
+    printf("%-10s %4dx%-4d %6d B  decode+2x %4lld ms  draw %4lld ms  err %d\n",
+           name, info.width, info.height, (int)(end - start),
+           (t1 - t0) / 1000, (t2 - t1) / 1000, err);
+}
+
 void app_main()
 {
     // Initialize I2C communication and CH422G hardware interface
@@ -131,5 +199,11 @@ void app_main()
     back ^= 1;
     vTaskDelay(pdMS_TO_TICKS(1000));
     bench_new("fb1024g", gray_1024_jpg_start, gray_1024_jpg_end, fb[back], panel);
+    back ^= 1;
+
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    bench_new("new512g", crop_512_jpg_start, crop_512_jpg_end, BlackImage, panel);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    bench_block("blk512x2", crop_512_jpg_start, crop_512_jpg_end, (uint16_t *)fb[back], panel);
     back ^= 1;
 }
