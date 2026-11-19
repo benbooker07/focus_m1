@@ -1,7 +1,7 @@
 {
     "version":            "1.2",
     "project_name":       "06_LCD",
-    "project_version":    "85f18a6-dirty",
+    "project_version":    "14dc394-dirty",
     "project_path":       "/home/benbooker/esp/focus_m1",
     "idf_path":           "/home/benbooker/.espressif/v5.5.6/esp-idf",
     "build_dir":          "/home/benbooker/esp/focus_m1/build",
@@ -1315,7 +1315,7 @@
             "managed_reqs": [],
             "managed_priv_reqs": [],
             "file": "/home/benbooker/esp/focus_m1/build/esp-idf/main/libmain.a",
-            "sources": [ "/home/benbooker/esp/focus_m1/main/main.c" ],
+            "sources": [ "/home/benbooker/esp/focus_m1/main/main.c", "/home/benbooker/esp/focus_m1/build/test.jpg.S" ],
             "include_dirs": [ "." ]
         },
         "mbedtls": {

@@ -1,6 +1,9 @@
 #include "rgb_lcd_port.h"    // Header for Waveshare RGB LCD driver
 #include "gui_paint.h"       // Header for graphical drawing functions
 
+extern const uint8_t test_jpg_start[] asm("_binary_test_jpg_start");
+extern const uint8_t test_jpg_end[]   asm("_binary_test_jpg_end");
+
 #define ROTATE ROTATE_0//rotate = 0, 90, 180, 270
 
 void app_main()
@@ -34,6 +37,8 @@ void app_main()
     }
 
    wavesahre_rgb_lcd_display(BlackImage);
+
+   printf("JPEG size: %d bytes\n", (int)(test_jpg_end - test_jpg_start));
 }
 
    
