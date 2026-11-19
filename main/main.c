@@ -102,6 +102,10 @@ void app_main()
     size_t work_size = 65472;
     void *work_buf = heap_caps_malloc(work_size, MALLOC_CAP_INTERNAL);
 
+    void *fb[2];
+    waveshare_get_frame_buffer(&fb[0], &fb[1]);
+    int back = 1; // the screen starts on fb[0], so fb[1] is hidden
+
     if (work_buf == NULL)
         printf("work_buf alloc failed\n");
 
@@ -121,4 +125,11 @@ void app_main()
     bench_new("new800g", gray_800_jpg_start, gray_800_jpg_end, BlackImage, panel);
     vTaskDelay(pdMS_TO_TICKS(1000));
     bench_new("new1024g", gray_1024_jpg_start, gray_1024_jpg_end, BlackImage, panel);
+
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    bench_new("fb1024c", test_jpg_start, test_jpg_end, fb[back], panel);
+    back ^= 1;
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    bench_new("fb1024g", gray_1024_jpg_start, gray_1024_jpg_end, fb[back], panel);
+    back ^= 1;
 }
