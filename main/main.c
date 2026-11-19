@@ -43,6 +43,39 @@ static void bench(const char *name, const uint8_t *start, const uint8_t *end,
            (t1 - t0) / 1000, (t2 - t1) / 1000, esp_err_to_name(err));
 }
 
+static void bench_new(const char *name, const uint8_t *start, const uint8_t *end,
+                      uint8_t *buf, esp_lcd_panel_handle_t panel)
+{
+    jpeg_dec_config_t config = DEFAULT_JPEG_DEC_CONFIG();
+    config.output_type = JPEG_PIXEL_FORMAT_RGB565_LE;
+
+    jpeg_dec_handle_t dec = NULL;
+    jpeg_dec_io_t io = {
+        .inbuf = (uint8_t *)start,
+        .inbuf_len = end - start,
+        .outbuf = buf,
+    };
+    jpeg_dec_header_info_t info = {0};
+
+    int64_t t0 = esp_timer_get_time();
+    jpeg_error_t err = jpeg_dec_open(&config, &dec);
+    if (err == JPEG_ERR_OK)
+        err = jpeg_dec_parse_header(dec, &io, &info);
+    if (err == JPEG_ERR_OK)
+        err = jpeg_dec_process(dec, &io);
+    if (dec)
+        jpeg_dec_close(dec);
+    int64_t t1 = esp_timer_get_time();
+
+    if (err == JPEG_ERR_OK)
+        esp_lcd_panel_draw_bitmap(panel, 0, 0, info.width, info.height, buf);
+    int64_t t2 = esp_timer_get_time();
+
+    printf("%-10s %4dx%-4d %6d B  decode %4lld ms  draw %4lld ms  err %d\n",
+           name, info.width, info.height, (int)(end - start),
+           (t1 - t0) / 1000, (t2 - t1) / 1000, err);
+}
+
 void app_main()
 {
     // Initialize I2C communication and CH422G hardware interface
@@ -79,4 +112,13 @@ void app_main()
     bench("gray800", gray_800_jpg_start, gray_800_jpg_end, BlackImage, Imagesize, work_buf, work_size, panel);
     vTaskDelay(pdMS_TO_TICKS(1000));
     bench("gray1024", gray_1024_jpg_start, gray_1024_jpg_end, BlackImage, Imagesize, work_buf, work_size, panel);
+
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    bench_new("new1024c", test_jpg_start, test_jpg_end, BlackImage, panel);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    bench_new("new480g", gray_480_jpg_start, gray_480_jpg_end, BlackImage, panel);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    bench_new("new800g", gray_800_jpg_start, gray_800_jpg_end, BlackImage, panel);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    bench_new("new1024g", gray_1024_jpg_start, gray_1024_jpg_end, BlackImage, panel);
 }
