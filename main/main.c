@@ -5,6 +5,7 @@
 #include "esp_heap_caps.h"
 #include "esp_jpeg_dec.h"
 #include <string.h>
+#include "freertos/semphr.h"
 
 extern const uint8_t test_jpg_start[] asm("_binary_test_jpg_start");
 extern const uint8_t test_jpg_end[] asm("_binary_test_jpg_end");
@@ -151,6 +152,38 @@ static void bench_block(const char *name, const uint8_t *start, const uint8_t *e
            (t1 - t0) / 1000, (t2 - t1) / 1000, err);
 }
 
+typedef struct
+{
+    const uint8_t *start, *end; // which JPEG
+    uint8_t *buf;               // where to decode
+    int frames;                 // how many times
+    SemaphoreHandle_t done;     // signal when finished
+} decode_job_t;
+
+static void decode_task(void *arg)
+{
+    decode_job_t *job = arg;
+    jpeg_dec_config_t config = DEFAULT_JPEG_DEC_CONFIG();
+    config.output_type = JPEG_PIXEL_FORMAT_RGB565_LE;
+
+    for (int n = 0; n < job->frames; n++)
+    {
+        jpeg_dec_handle_t dec = NULL;
+        jpeg_dec_io_t io = {.inbuf = (uint8_t *)job->start,
+                            .inbuf_len = job->end - job->start,
+                            .outbuf = job->buf};
+        jpeg_dec_header_info_t info;
+        if (jpeg_dec_open(&config, &dec) == JPEG_ERR_OK)
+        {
+            if (jpeg_dec_parse_header(dec, &io, &info) == JPEG_ERR_OK)
+                jpeg_dec_process(dec, &io);
+            jpeg_dec_close(dec);
+        }
+    }
+    xSemaphoreGive(job->done); // "I'm finished"
+    vTaskDelete(NULL);         // a task must delete itself when done
+}
+
 void app_main()
 {
     // Initialize I2C communication and CH422G hardware interface
@@ -217,4 +250,27 @@ void app_main()
     vTaskDelay(pdMS_TO_TICKS(3000)); // time to look at the 512 version
     bench_new("crop1024", crop_1024_jpg_start, crop_1024_jpg_end, fb[back], panel);
     back ^= 1;
+
+    uint8_t *buf2 = jpeg_calloc_align(Imagesize, 16);        // second output buffer
+    SemaphoreHandle_t done = xSemaphoreCreateCounting(2, 0); // can count up to 2 "finished" signals
+    const int N = 20;
+
+    // One core: 20 frames
+    decode_job_t j1 = {crop_1024_jpg_start, crop_1024_jpg_end, BlackImage, N, done};
+    int64_t t0 = esp_timer_get_time();
+    xTaskCreatePinnedToCore(decode_task, "dec1", 8192, &j1, 5, NULL, 1);
+    xSemaphoreTake(done, portMAX_DELAY); // wait for it
+    int64_t t1 = esp_timer_get_time();
+    printf("1 core:  %d frames in %lld ms = %.1f fps\n", N, (t1 - t0) / 1000, N * 1e6 / (t1 - t0));
+
+    // Two cores: 20 frames each, at the same time
+    decode_job_t ja = {crop_1024_jpg_start, crop_1024_jpg_end, BlackImage, N, done};
+    decode_job_t jb = {crop_1024_jpg_start, crop_1024_jpg_end, buf2, N, done};
+    t0 = esp_timer_get_time();
+    xTaskCreatePinnedToCore(decode_task, "decA", 8192, &ja, 5, NULL, 0);
+    xTaskCreatePinnedToCore(decode_task, "decB", 8192, &jb, 5, NULL, 1);
+    xSemaphoreTake(done, portMAX_DELAY); // wait for both
+    xSemaphoreTake(done, portMAX_DELAY);
+    t1 = esp_timer_get_time();
+    printf("2 cores: %d frames in %lld ms = %.1f fps\n", 2 * N, (t1 - t0) / 1000, 2 * N * 1e6 / (t1 - t0));
 }

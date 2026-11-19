@@ -599,7 +599,7 @@
     "JD_USE_SCALE": true,
     "LCD_ENABLE_DEBUG_LOG": false,
     "LCD_RGB_ISR_IRAM_SAFE": false,
-    "LCD_RGB_RESTART_IN_VSYNC": false,
+    "LCD_RGB_RESTART_IN_VSYNC": true,
     "LEDC_CTRL_FUNC_IN_IRAM": false,
     "LIBC_ASSERT_BUFFER_SIZE": 200,
     "LIBC_LOCKS_PLACE_IN_IRAM": true,
