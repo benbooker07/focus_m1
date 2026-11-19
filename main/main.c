@@ -1,6 +1,7 @@
 #include "rgb_lcd_port.h" // Header for Waveshare RGB LCD driver
 #include "gui_paint.h"    // Header for graphical drawing functions
 #include "jpeg_decoder.h"
+#include "esp_timer.h"
 
 extern const uint8_t test_jpg_start[] asm("_binary_test_jpg_start");
 extern const uint8_t test_jpg_end[] asm("_binary_test_jpg_end");
@@ -42,11 +43,15 @@ void app_main()
 
     esp_jpeg_image_output_t out;
 
+    int64_t t0 = esp_timer_get_time();
     esp_err_t err = esp_jpeg_decode(&cfg, &out);
-
-    printf("decode: %s, %dx%d\n", esp_err_to_name(err), out.width, out.height);
-
+    int64_t t1 = esp_timer_get_time();
     wavesahre_rgb_lcd_display(BlackImage);
+    int64_t t2 = esp_timer_get_time();
+
+    printf("decode: %lld ms, display: %lld ms\n", (t1 - t0) / 1000, (t2 - t1) / 1000);
+
+    printf("result: %s\n", esp_err_to_name(err));
 
     printf("JPEG size: %d bytes\n", (int)(test_jpg_end - test_jpg_start));
 }
