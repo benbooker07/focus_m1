@@ -1,0 +1,1 @@
+Command: cmake -G Ninja -DPYTHON_DEPS_CHECKED=1 -DPYTHON=/home/benbooker/.espressif/tools/python/v5.5.6/venv/bin/python3 -DESP_PLATFORM=1 -DCCACHE_ENABLE=0 /home/benbooker/esp/focus_m1
