@@ -16,6 +16,8 @@ extern const uint8_t gray_1024_jpg_start[] asm("_binary_gray_1024_jpg_start");
 extern const uint8_t gray_1024_jpg_end[] asm("_binary_gray_1024_jpg_end");
 extern const uint8_t crop_512_jpg_start[] asm("_binary_crop_512_jpg_start");
 extern const uint8_t crop_512_jpg_end[] asm("_binary_crop_512_jpg_end");
+extern const uint8_t crop_1024_jpg_start[] asm("_binary_crop_1024_jpg_start");
+extern const uint8_t crop_1024_jpg_end[] asm("_binary_crop_1024_jpg_end");
 
 #define ROTATE ROTATE_0 // rotate = 0, 90, 180, 270
 
@@ -90,6 +92,7 @@ static void bench_block(const char *name, const uint8_t *start, const uint8_t *e
     jpeg_dec_io_t io = {.inbuf = (uint8_t *)start, .inbuf_len = end - start};
     jpeg_dec_header_info_t info = {0};
     uint8_t *block = NULL;
+    uint32_t *line = NULL;
     int block_len = 0, count = 0;
 
     int64_t t0 = esp_timer_get_time();
@@ -105,7 +108,8 @@ static void bench_block(const char *name, const uint8_t *start, const uint8_t *e
     if (err == JPEG_ERR_OK)
     {
         block = heap_caps_aligned_alloc(16, block_len, MALLOC_CAP_INTERNAL);
-        if (block == NULL)
+        line = heap_caps_aligned_alloc(16, EXAMPLE_LCD_H_RES * 2, MALLOC_CAP_INTERNAL);
+        if (block == NULL || line == NULL)
             err = JPEG_ERR_NO_MEM;
     }
     io.outbuf = block;
@@ -119,20 +123,23 @@ static void bench_block(const char *name, const uint8_t *start, const uint8_t *e
 
         for (int r = 0; r < rows; r++, y++)
         {
-            uint16_t *row = fb + (2 * y) * EXAMPLE_LCD_H_RES; // screen row 2*y
+            uint16_t *s = src + r * info.width; // this source row
             for (int x = 0; x < info.width; x++)
             {
-                uint16_t p = src[r * info.width + x];
-                row[2 * x] = p; // pixel twice across
-                row[2 * x + 1] = p;
+                uint32_t p = s[x];
+                line[x] = p | (p << 16); // same pixel in both halves
             }
-            memcpy(row + EXAMPLE_LCD_H_RES, row, info.width * 2 * 2); // and twice down
+            uint16_t *row = fb + (2 * y) * EXAMPLE_LCD_H_RES;
+            memcpy(row, line, info.width * 4);                     // screen row 2*y
+            memcpy(row + EXAMPLE_LCD_H_RES, line, info.width * 4); // screen row 2*y+1
         }
     }
     if (dec)
         jpeg_dec_close(dec);
     if (block)
         heap_caps_free(block);
+    if (line)
+        heap_caps_free(line);
     int64_t t1 = esp_timer_get_time();
 
     if (err == JPEG_ERR_OK)
@@ -205,5 +212,9 @@ void app_main()
     bench_new("new512g", crop_512_jpg_start, crop_512_jpg_end, BlackImage, panel);
     vTaskDelay(pdMS_TO_TICKS(1000));
     bench_block("blk512x2", crop_512_jpg_start, crop_512_jpg_end, (uint16_t *)fb[back], panel);
+    back ^= 1;
+
+    vTaskDelay(pdMS_TO_TICKS(3000)); // time to look at the 512 version
+    bench_new("crop1024", crop_1024_jpg_start, crop_1024_jpg_end, fb[back], panel);
     back ^= 1;
 }
